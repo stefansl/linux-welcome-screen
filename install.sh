@@ -63,11 +63,15 @@ EOF
     echo "✅ Added Fish shell support at $FISH_FILE"
 fi
 
+# Package managers must not read from stdin: with "curl ... | bash" stdin is the
+# script itself, and apt/dpkg would swallow the rest of it.
+export DEBIAN_FRONTEND=noninteractive
+
 # --- Refresh package index once, only if something needs installing ---
 PM_UPDATED=0
 pm_update() {
     if [ "$PM_UPDATED" -eq 0 ]; then
-        eval "$UPDATE_CMD" >/dev/null 2>&1 || true
+        eval "$UPDATE_CMD" </dev/null >/dev/null 2>&1 || true
         PM_UPDATED=1
     fi
 }
@@ -76,14 +80,14 @@ pm_update() {
 if ! command -v figlet >/dev/null 2>&1 && [ -n "$PM_INSTALL" ]; then
     echo "📦 Installing 'figlet' for ASCII banners..."
     pm_update
-    eval "$PM_INSTALL figlet" >/dev/null 2>&1 || echo "⚠  Could not install figlet automatically."
+    eval "$PM_INSTALL figlet" </dev/null >/dev/null 2>&1 || echo "⚠  Could not install figlet automatically."
 fi
 
 # --- Login history (Debian 13+ dropped 'last'; wtmpdb is the replacement) ---
 if command -v apt >/dev/null 2>&1 && ! command -v last >/dev/null 2>&1 && ! command -v wtmpdb >/dev/null 2>&1; then
     echo "📦 Installing 'wtmpdb' for the last login display..."
     pm_update
-    if eval "$PM_INSTALL wtmpdb libpam-wtmpdb" >/dev/null 2>&1; then
+    if eval "$PM_INSTALL wtmpdb libpam-wtmpdb" </dev/null >/dev/null 2>&1; then
         echo "✅ wtmpdb installed (logins are recorded from now on)"
     else
         echo "⚠  Could not install wtmpdb automatically."
