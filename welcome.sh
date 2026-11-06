@@ -106,7 +106,36 @@ BLUE="\033[1;34m"; CYAN="\033[1;36m"; RESET="\033[0m"
         REBOOT_STATUS="${GREEN}Not required${RESET}"
     fi
 
-    LAST_LOGIN=$(last -n 2 "$USER" 2>/dev/null | awk 'NR==2 {print $4" "$5" "$6" "$7" from "$3}')
+    # Last login (previous session = 2nd entry of the user; the 1st is the current one)
+    LOGIN_USER="${USER:-$(id -un)}"
+    parse_last_iso() {
+        # Expects "--time-format iso" output; host column may be missing for local ttys
+        awk -v u="$LOGIN_USER" '
+            $1 == u {
+                for (i = 2; i <= NF; i++) if ($i ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T/) break
+                if (i > NF) next
+                if (++n == 2) {
+                    out = substr($i, 1, 10) " " substr($i, 12, 5)
+                    if (i == 4) out = out " from " $3
+                    print out; exit
+                }
+            }'
+    }
+    LAST_LOGIN=""
+    if command -v last >/dev/null 2>&1; then
+        LAST_LOGIN=$(last --time-format iso -n 5 "$LOGIN_USER" 2>/dev/null | parse_last_iso)
+        if [ -z "$LAST_LOGIN" ]; then
+            # Old/busybox last without --time-format
+            LAST_LOGIN=$(last -n 5 "$LOGIN_USER" 2>/dev/null | awk -v u="$LOGIN_USER" \
+                '$1 == u && NF >= 7 && ++n == 2 {print $4" "$5" "$6" "$7" from "$3; exit}')
+        fi
+    fi
+    if [ -z "$LAST_LOGIN" ] && command -v wtmpdb >/dev/null 2>&1; then
+        # Debian 13+, newer Ubuntu, openSUSE: Y2038-safe wtmpdb instead of /var/log/wtmp
+        LAST_LOGIN=$(wtmpdb last --time-format iso -n 5 "$LOGIN_USER" 2>/dev/null | parse_last_iso)
+    fi
+    unset -f parse_last_iso
+    LAST_LOGIN="${LAST_LOGIN:-n/a}"
 
     # Banner
     if command -v figlet >/dev/null 2>&1; then
