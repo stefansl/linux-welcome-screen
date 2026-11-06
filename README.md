@@ -11,6 +11,7 @@ Now with multi-shell support — works with **Bash, Zsh, Fish, Ksh, Dash** and m
 - 🖥 Shows hostname, OS, uptime, load, memory, disk, and IP
 - 📦 Counts available updates for your distro’s package manager
 - 🧩 Detects failed systemd/SysV services
+- 🔄 Warns when a reboot is required (Debian/Ubuntu, Fedora/RHEL, openSUSE, kernel updates on Arch/Alpine & others)
 - 🧱 Fancy ASCII banner via `figlet`
 - 🐚 Works in Bash, Zsh, Fish, Dash, Ksh
 

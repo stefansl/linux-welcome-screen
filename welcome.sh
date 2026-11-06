@@ -75,6 +75,37 @@ BLUE="\033[1;34m"; CYAN="\033[1;36m"; RESET="\033[0m"
         SERVICE_STATUS="${RED}Some services failed${RESET}"
     fi
 
+    # Reboot required?
+    REBOOT_REASON=""
+    if [ -f /var/run/reboot-required ] || [ -f /run/reboot-required ]; then
+        # Debian / Ubuntu
+        REBOOT_PKGS=$(sort -u /var/run/reboot-required.pkgs /run/reboot-required.pkgs 2>/dev/null | xargs)
+        REBOOT_REASON="${REBOOT_PKGS:-pending updates}"
+    elif [ -f /run/reboot-needed ] || [ -f /var/run/reboot-needed ]; then
+        # openSUSE (libzypp)
+        REBOOT_REASON="pending updates"
+    elif [ "$PM" = "dnf" ] || [ "$PM" = "yum" ]; then
+        # Fedora / RHEL: needs-restarting -r exits 1 when a reboot is required
+        if command -v needs-restarting >/dev/null 2>&1; then
+            timeout 5 needs-restarting -r >/dev/null 2>&1
+            [ $? -eq 1 ] && REBOOT_REASON="core packages updated"
+        elif [ "$PM" = "dnf" ]; then
+            timeout 5 dnf -q needs-restarting -r >/dev/null 2>&1
+            [ $? -eq 1 ] && REBOOT_REASON="core packages updated"
+        fi
+    fi
+    # Generic fallback (Arch, Alpine, ...): modules of the running kernel are gone
+    # (skipped in containers, where the host kernel never matches the image's modules)
+    if [ -z "$REBOOT_REASON" ] && [ ! -f /.dockerenv ] && [ ! -f /run/.containerenv ] \
+        && [ -n "$(ls -A /lib/modules 2>/dev/null)" ] && [ ! -d "/lib/modules/$(uname -r)" ]; then
+        REBOOT_REASON="kernel updated"
+    fi
+    if [ -n "$REBOOT_REASON" ]; then
+        REBOOT_STATUS="${RED}⚠ Reboot required${RESET} (${REBOOT_REASON})"
+    else
+        REBOOT_STATUS="${GREEN}Not required${RESET}"
+    fi
+
     LAST_LOGIN=$(last -n 2 "$USER" 2>/dev/null | awk 'NR==2 {print $4" "$5" "$6" "$7" from "$3}')
 
     # Banner
@@ -101,6 +132,7 @@ BLUE="\033[1;34m"; CYAN="\033[1;36m"; RESET="\033[0m"
     echo -e "🌐  IP address:   $IP"
     echo -e "📦  Updates:      ${YELLOW}$UPDATES${RESET} available via $PM"
     echo -e "🧩  Services:     $SERVICE_STATUS"
-    echo -e "📜  Last login:   ${YELLOW}$LAST_LOGIN${RESET}"
+    echo -e "🔄  Reboot:       $REBOOT_STATUS"
+    echo -e "📜  Last login:  ${YELLOW}$LAST_LOGIN${RESET}"
     echo -e "${BLUE}───────────────────────────────────────────────${RESET}"
 } 2>/dev/null
